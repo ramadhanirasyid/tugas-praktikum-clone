@@ -14,9 +14,15 @@ class EmployeeController extends Controller
     public function index()
     {
         $pageTitle = 'Employee List';
-        return view('employee.index', ['pageTitle' => $pageTitle]);
-    }
 
+        $employees = DB::table('employees')
+            ->select('*', 'employees.id as employee_id', 'positions.name as position_name')
+            ->leftJoin('positions', 'employees.position_id', '=', 'positions.id')
+            ->get();
+
+
+        return view('employee.index', ['pageTitle' => $pageTitle], ['employees' => $employees]);
+    }
 
     /**
      * Show the form for creating a new resource.
@@ -24,7 +30,10 @@ class EmployeeController extends Controller
     public function create()
     {
         $pageTitle = 'Create Employee';
-        return view('employee.create', compact('pageTitle'));
+        $positions = DB::table('positions')
+            ->select('*')
+            ->get();
+        return view('employee.create', compact('pageTitle', 'positions'));
     }
 
     /**
@@ -46,16 +55,31 @@ class EmployeeController extends Controller
         if ($validator->fails()) {
             return redirect()->back()->withErrors($validator)->withInput();
         }
-        return $request->all();
-    }
 
+        DB::table('employees')->insert([
+            'firstname' => $request->firstName,
+            'lastname' => $request->lastName,
+            'email' => $request->email,
+            'age' => $request->age,
+            'position_id' => $request->position,
+        ]);
+
+        return redirect()->route('employees.index');
+    }
 
     /**
      * Display the specified resource.
      */
     public function show(string $id)
     {
-        //
+        $pageTitle = 'Employee Detail';
+        // RAW SQL QUERY
+        $employee = collect(DB::table('employees')
+            ->select('*', 'employees.id as employee_id', 'positions.name as position_name')
+            ->leftJoin('positions', 'employees.position_id', '=', 'positions.id')
+            ->where('employees.id', '=', $id)
+            ->get(), [$id])->first();
+        return view('employee.show', compact('pageTitle', 'employee'));
     }
 
     /**
@@ -63,7 +87,17 @@ class EmployeeController extends Controller
      */
     public function edit(string $id)
     {
-        //
+        $pageTitle = 'Employee Edit';
+        $positions = DB::table('positions')
+            ->select('*')
+            ->get();
+        $employee = collect(DB::table('employees')
+            ->select('*', 'employees.id as employee_id', 'positions.name as position_name')
+            ->leftJoin('positions', 'employees.position_id', '=', 'positions.id')
+            ->where('employees.id', '=', $id)
+            ->get(), [$id])->first();
+
+        return view('employee.edit',  compact('pageTitle', 'positions', 'employee'));
     }
 
     /**
@@ -71,7 +105,32 @@ class EmployeeController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        $messages = [
+            'required' => ':Attribute harus diisi.',
+            'email' => 'Isi :attribute dengan format yang benar',
+            'numeric' => 'Isi :attribute dengan angka'
+        ];
+        $validator = Validator::make($request->all(), [
+            'firstName' => 'required',
+            'lastName' => 'required',
+            'email' => 'required|email',
+            'age' => 'required|numeric',
+        ], $messages);
+        if ($validator->fails()) {
+            return redirect()->route('employees.index');
+        }
+
+        DB::table('employees')
+            ->where('id', $id)
+            ->update([
+                'firstname' => $request->firstName,
+                'lastname' => $request->lastName,
+                'email' => $request->email,
+                'age' => $request->age,
+                'position_id' => $request->position,
+            ]);
+
+        return redirect()->route('employees.index');
     }
 
     /**
@@ -79,6 +138,9 @@ class EmployeeController extends Controller
      */
     public function destroy(string $id)
     {
-        //
+        DB::table('employees')
+            ->where('id', $id)
+            ->delete();
+        return redirect()->route('employees.index');
     }
 }
